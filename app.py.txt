@@ -1,0 +1,79 @@
+import streamlit as st
+import sqlite3
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import date
+
+# Page Configuration
+st.set_page_config(page_title="PyExpense - Rahul Attri (25801072)", layout="wide")
+
+# Database Setup
+conn = sqlite3.connect("expenses.db", check_same_thread=False)
+cursor = conn.cursor()
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        exp_date TEXT,
+        category TEXT,
+        amount REAL,
+        description TEXT
+    )
+""")
+conn.commit()
+
+# Header Section (Updated with Roll No: 25801072)
+st.title("💰 PyExpense: Smart Expense Tracker & Analyzer")
+st.markdown("**Developed by:** Rahul Attri (Roll No: 25801072) | **Institute:** Sant Baba Bhag Singh University (SBBSU)")
+st.divider()
+
+# Sidebar - Add New Expense
+st.sidebar.header("➕ Add New Expense")
+exp_date = st.sidebar.date_input("Date", date.today())
+category = st.sidebar.selectbox("Category", ["Food & Dining", "Travel & Fuel", "Education & Books", "Mobile & Internet", "Shopping", "Other"])
+amount = st.sidebar.number_input("Amount (₹)", min_value=1.0, step=10.0)
+description = st.sidebar.text_input("Short Note (e.g., Bus fare, Canteen)")
+
+if st.sidebar.button("Save Expense", use_container_width=True):
+    cursor.execute("INSERT INTO expenses (exp_date, category, amount, description) VALUES (?, ?, ?, ?)",
+                   (str(exp_date), category, amount, description))
+    conn.commit()
+    st.sidebar.success("Expense added successfully!")
+
+# Fetch Data
+df = pd.read_sql_query("SELECT * FROM expenses ORDER BY exp_date DESC", conn)
+
+# Main Dashboard
+if not df.empty:
+    total_spent = df["amount"].sum()
+    monthly_budget = st.sidebar.number_input("Set Monthly Budget (₹)", min_value=500.0, value=5000.0, step=500.0)
+    remaining = monthly_budget - total_spent
+
+    # Top Metrics
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Spent", f"₹{total_spent:,.2f}")
+    col2.metric("Monthly Budget", f"₹{monthly_budget:,.2f}")
+    col3.metric("Remaining Balance", f"₹{remaining:,.2f}", delta=f"{remaining:,.2f}")
+
+    st.divider()
+
+    # Charts & Table Layout
+    left_col, right_col = st.columns([1, 1])
+
+    with left_col:
+        st.subheader("📊 Category-Wise Spending")
+        cat_data = df.groupby("category")["amount"].sum()
+        fig, ax = plt.subplots(figsize=(5, 4))
+        ax.pie(cat_data, labels=cat_data.index, autopct="%1.1f%%", startangle=140)
+        ax.axis("equal")
+        st.pyplot(fig)
+
+    with right_col:
+        st.subheader("📋 Recent Transactions")
+        st.dataframe(df[["exp_date", "category", "amount", "description"]], use_container_width=True)
+
+        # Download CSV Button
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("⬇️ Download Expense Report (CSV)", data=csv, file_name="Rahul_Attri_25801072_Expenses.csv", mime="text/csv")
+else:
+    st.info("No expenses recorded yet. Use the left sidebar to add your first expense!")
+
